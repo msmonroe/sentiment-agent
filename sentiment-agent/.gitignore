@@ -1,4 +1,6 @@
-# Python
+# -----------------------------
+# Python / FastAPI project
+# -----------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -8,56 +10,76 @@ __pycache__/
 *.egg
 *.egg-info/
 *.log
-
-# Virtual environment
-.venv/
-env/
-venv/
-ENV/
-
-# Uvicorn / FastAPI reload artifacts
-*.reload
-
-# VS Code / IDE
-.vscode/
-.idea/
-*.swp
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Test / coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-
-# Hugging Face cache (avoid pushing big model weights)
-.huggingface/
-transformers_cache/
-~/.cache/huggingface/
-
-# Docker
-*.pid
-*.seed
-*.pid.lock
-
-# Reports / temp data
 *.out
 *.tmp
 *.bak
 *.old
 
-# Node / Frontend (if expanded)
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+pip-wheel-metadata/
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Hugging Face / models (avoid committing big weights)
+.huggingface/
+transformers_cache/
+~/.cache/huggingface/
+*.safetensors
+*.bin
+*.pt
+*.h5
+
+# Node / frontend (if expanded)
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dist/
 build/
+
+# Docker & runtime bits
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------------
+# Secrets & local config
+# -----------------------------
+# Dotenv secrets (keep out of git)
+.env
+.env.*
+!.env.example
+
+# If you keep a local-only config override, ignore it:
+config.local.toml
+
+# (We DO track config.toml by default so you have versioned defaults.)
+# If you ever add secrets to config.toml, switch to:
+#   - commit config.example.toml
+#   - add `config.toml` here to ignore

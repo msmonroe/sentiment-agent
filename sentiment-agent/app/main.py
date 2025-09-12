@@ -7,7 +7,16 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch, time, os, tomllib, threading, logging, hashlib, re
 import numpy as np
 from langdetect import detect, LangDetectException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from dotenv import load_dotenv
+load_dotenv()  # load .env early
 
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+    
 try:
     from detoxify import Detoxify
 except Exception:  # optional at runtime
@@ -63,6 +72,10 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "config.toml")
 _config_lock = threading.Lock()
 _config: Dict[str, Any] = DEFAULT_CONFIG.copy()
 
+# Fallback no-op decorator
+def _rate_limit_decorator(fn):
+    return fn
+
 def _load_config():
     global _config
     try:
@@ -109,6 +122,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
+
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -205,6 +221,39 @@ def predict_with_controls(text: str) -> Dict[str, Any]:
 
     return {"label": top_label, "score": top_p, "probs": label_to_prob}
 
+def predict_with_openai(text: str) -> Dict[str, Any]:
+    cfg = get_cfg()
+    if not OpenAI:
+        raise RuntimeError("OpenAI SDK not installed")
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    client = OpenAI(
+        api_key=api_key,
+        organization=os.environ.get("OPENAI_ORG_ID"),
+        project=os.environ.get("OPENAI_PROJECT_ID"),
+        base_url=os.environ.get("OPENAI_API_BASE")  # optional
+    )
+    model_name = os.environ.get("OPENAI_MODEL") or cfg.get("openai", {}).get("model", "gpt-4o-mini")
+
+    # Ask for structured JSON to avoid brittle parsing.
+    system = "You are a precise sentiment classifier. Return strict JSON with keys: label (positive|neutral|negative) and score (0..1)."
+    user = f"Classify sentiment for this text:\n{text}\n\nRespond as JSON only."
+
+    resp = client.chat.completions.create(
+        model=model_name,
+        temperature=0,
+        messages=[{"role":"system","content":system},{"role":"user","content":user}],
+        response_format={"type": "json_object"},
+    )
+    import json
+    data = json.loads(resp.choices[0].message.content)
+    label = str(data.get("label","neutral")).lower()
+    if label not in {"positive","neutral","negative"}:
+        label = "neutral"
+    score = float(data.get("score", 0.5))
+    return {"label": label, "score": score, "probs": {label: score}}
+
 # ---------- Guardrails ----------
 def guardrails_pre(text: str) -> Dict[str, Any]:
     cfg = get_cfg()
@@ -262,20 +311,26 @@ except Exception:
         return deco
 
 # ---------- Endpoints ----------
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/ui") 
+
 @app.get("/health")
 def health():
     get_tokenizer_model()
     return {"status": "ok"}
 
 @app.post("/analyze")
-@_rate_limit_decorator(get_cfg()["guardrails"]["rate_limit"])
-def analyze(req: AnalyzeRequest):
+@_rate_limit_decorator
+async def analyze(req: AnalyzeRequest, request: Request):
     g = guardrails_pre(req.text)
     if g["safety"] == "blocked":
         audit_event("blocked", {"text": req.text, "reasons": g["reasons"]})
         raise HTTPException(status_code=400, detail="Request blocked by safety policy")
 
-    pred = predict_with_controls(req.text)
+    use_openai = bool(get_cfg().get("openai", {}).get("enabled"))
+    pred = predict_with_openai(req.text) if use_openai else predict_with_controls(req.text)
 
     safety = g["safety"]
     reasons = list(g["reasons"])
@@ -292,8 +347,8 @@ def analyze(req: AnalyzeRequest):
     return resp
 
 @app.post("/analyze/batch")
-@_rate_limit_decorator(get_cfg()["guardrails"]["rate_limit"])
-def analyze_batch(req: AnalyzeBatchRequest):
+@_rate_limit_decorator
+async def analyze_batch(req: AnalyzeBatchRequest, request: Request):
     results = []
     for t in req.texts:
         try:
@@ -305,7 +360,7 @@ def analyze_batch(req: AnalyzeBatchRequest):
                     policy=PolicyBlock(safety="blocked", reasons=g["reasons"], toxicity=float(g["toxicity"]))
                 ))
                 continue
-            pred = predict_with_controls(t)
+            pred = predict_with_openai(t) if use_openai else predict_with_controls(t)
             safety = g["safety"]
             reasons = list(g["reasons"])
             if pred["label"] == "abstain" and safety == "ok":
@@ -322,3 +377,6 @@ def analyze_batch(req: AnalyzeBatchRequest):
                 policy=PolicyBlock(safety="blocked", reasons=[str(e.detail)], toxicity=0.0)
             ))
     return {"results": [r.dict() for r in results]}
+
+
+
