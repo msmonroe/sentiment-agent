@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.so
+*.egg
+*.egg-info/
+*.log
+
+# Virtual environment
+.venv/
+env/
+venv/
+ENV/
+
+# Uvicorn / FastAPI reload artifacts
+*.reload
+
+# VS Code / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Hugging Face cache (avoid pushing big model weights)
+.huggingface/
+transformers_cache/
+~/.cache/huggingface/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Reports / temp data
+*.out
+*.tmp
+*.bak
+*.old
+
+# Node / Frontend (if expanded)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/

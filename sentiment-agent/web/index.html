@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentiment Agent</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+    .card { max-width: 760px; margin: 0 auto; padding: 1rem 1.25rem; border: 1px solid #ddd; border-radius: 12px; }
+    textarea { width: 100%; min-height: 140px; font-size: 16px; padding: .75rem; border-radius: 8px; border: 1px solid #ccc; }
+    button { padding: .7rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
+    .row { display: flex; gap: .5rem; margin-top: .75rem; align-items: center; }
+    .result { margin-top: 1rem; padding: .75rem; background: #f8f8f8; border-radius: 8px; }
+    .badge { display: inline-block; padding: .2rem .5rem; border-radius: 999px; border: 1px solid #eee; }
+    .small { color: #555; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>AI/ML Sentiment Agent</h2>
+    <p class="small">Type text and get a sentiment prediction. Configurable guardrails.</p>
+    <textarea id="text" placeholder="Paste text here…"></textarea>
+    <div class="row">
+      <button id="analyze">Analyze</button>
+      <span id="status" class="small"></span>
+    </div>
+    <div id="result" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    const API_BASE = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+      ? "http://localhost:8000"
+      : window.location.origin.replace(/\/$/, "");
+
+    async function ensureHealth() {
+      try {
+        const r = await fetch(`${API_BASE}/health`);
+        return r.ok;
+      } catch { return false; }
+    }
+
+    document.getElementById("analyze").addEventListener("click", async () => {
+      const text = document.getElementById("text").value.trim();
+      const status = document.getElementById("status");
+      const resultBox = document.getElementById("result");
+      resultBox.style.display = "none";
+      if (!text) { alert("Enter some text"); return; }
+
+      status.textContent = "Loading model (first run may take ~20s)…";
+      await ensureHealth();
+
+      status.textContent = "Analyzing…";
+      try {
+        const res = await fetch(`${API_BASE}/analyze`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ text })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Request failed");
+        }
+        const data = await res.json();
+        const { label, score } = data.result;
+        resultBox.innerHTML = `
+          <div><span class="badge">Label</span> <strong>${label}</strong></div>
+          <div><span class="badge">Confidence</span> ${(score * 100).toFixed(2)}%</div>
+          <div class="small" style="margin-top:.5rem; opacity:.9">
+            Input preview: ${data.input.length > 160 ? data.input.slice(0,160) + "…" : data.input}
+          </div>
+          <div class="small" style="margin-top:.5rem; opacity:.9">
+            Policy: <code>${data.policy.safety}</code> ${data.policy.reasons?.length ? " – " + data.policy.reasons.join(", ") : ""}
+          </div>`;
+        resultBox.style.display = "block";
+        status.textContent = "";
+      } catch (e) {
+        status.textContent = "Error. See console.";
+        console.error(e);
+        alert(e.message);
+      }
+    });
+  </script>
+</body>
+</html>

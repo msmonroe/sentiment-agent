@@ -1,0 +1,18 @@
+[model]
+id = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+temperature = 1.0
+conf_threshold = 0.55
+neutral_band = 0.10
+
+[guardrails]
+max_chars = 2000
+allow_langs = ["en"]
+toxicity_gate = true
+toxicity_threshold = 0.80
+pii_redaction = false
+rate_limit = "10/minute"
+audit_log = true
+
+[server]
+reload_config_seconds = 10
+cors_allow_origins = ["*"]
