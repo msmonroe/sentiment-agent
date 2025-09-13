@@ -17,6 +17,7 @@ audit_log = true
 reload_config_seconds = 10
 cors_allow_origins = ["*"]
 
+
 [openai]
 enabled = true
 model = "gpt-4o-mini"

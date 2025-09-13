@@ -72,10 +72,6 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "config.toml")
 _config_lock = threading.Lock()
 _config: Dict[str, Any] = DEFAULT_CONFIG.copy()
 
-# Fallback no-op decorator
-def _rate_limit_decorator(fn):
-    return fn
-
 def _load_config():
     global _config
     try:
@@ -111,10 +107,10 @@ def start_config_reloader():
 
 # ---------- App Setup ----------
 app = FastAPI(title="Sentiment Agent", version="1.1.0")
-_load_config()
-start_config_reloader()
 
-# CORS
+app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
+
+_load_config()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cfg()["server"]["cors_allow_origins"],
@@ -122,9 +118,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
-
+start_config_reloader()
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -168,8 +162,8 @@ def softmax(x: np.ndarray) -> np.ndarray:
 
 def redact_pii(text: str) -> str:
     patterns = [
-        (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "<EMAIL>"),
-        (re.compile(r"\\b(?:\\+?\\d{1,3}[-.\\s]?)?(?:\\(?\\d{3}\\)?[-.\\s]?){2}\\d{4}\\b"), "<PHONE>"),
+        (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "<EMAIL>"),
+        (re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?){2}\d{4}\b"), "<PHONE>"),
     ]
     for pat, repl in patterns:
         text = pat.sub(repl, text)
@@ -303,12 +297,14 @@ try:
     @app.exception_handler(RateLimitExceeded)
     def ratelimit_handler(request: Request, exc):
         return JSONResponse(status_code=429, content={"detail": "Too many requests"})
-    _rate_limit_decorator = limiter.limit(get_cfg()["guardrails"]["rate_limit"])
+
+    # wrap into a zero-arg decorator so @usage stays the same
+    def _rate_limit_decorator(fn):
+        return limiter.limit(get_cfg()["guardrails"]["rate_limit"])(fn)
+
 except Exception:
-    # Fallback no-op decorator
-    def _rate_limit_decorator(rule):
-        def deco(fn): return fn
-        return deco
+    # keep the simple fallback you defined earlier; no changes needed here
+    pass
 
 # ---------- Endpoints ----------
 
@@ -318,7 +314,8 @@ def root():
 
 @app.get("/health")
 def health():
-    get_tokenizer_model()
+    if not bool(get_cfg().get("openai", {}).get("enabled")):
+        get_tokenizer_model()
     return {"status": "ok"}
 
 @app.post("/analyze")
@@ -349,6 +346,7 @@ async def analyze(req: AnalyzeRequest, request: Request):
 @app.post("/analyze/batch")
 @_rate_limit_decorator
 async def analyze_batch(req: AnalyzeBatchRequest, request: Request):
+    use_openai = bool(get_cfg().get("openai", {}).get("enabled"))  # <-- add this
     results = []
     for t in req.texts:
         try:

@@ -11,13 +11,22 @@ A production-ready **Python web sentiment analysis agent** with configurable thr
 - Dockerfile + `config.toml` for runtime tuning
 
 ## Quickstart (Local)
+## unix,linux,macOS
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 # open web/index.html in your browser
 ```
-
+## Quickstart (Local)
+## windows
+```cmd
+python -m venv .venv 
+.venv\script\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+# open web/index.html in your browser
+```
 ## Docker
 ```bash
 docker build -t sentiment-agent .
