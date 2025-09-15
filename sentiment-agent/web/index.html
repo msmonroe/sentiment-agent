@@ -29,7 +29,7 @@
 
   <script>
     const API_BASE = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
-      ? "http://localhost:8010"
+      ? "https://localhost:8010"
       : window.location.origin.replace(/\/$/, "");
 
     async function ensureHealth() {

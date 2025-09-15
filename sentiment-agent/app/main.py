@@ -375,6 +375,3 @@ async def analyze_batch(req: AnalyzeBatchRequest, request: Request):
                 policy=PolicyBlock(safety="blocked", reasons=[str(e.detail)], toxicity=0.0)
             ))
     return {"results": [r.dict() for r in results]}
-
-
-

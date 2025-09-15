@@ -76,6 +76,11 @@ build/
 .env.*
 !.env.example
 
+# Hide pem files (if any)
+*.pem
+*.key
+*.crt
+
 # If you keep a local-only config override, ignore it:
 config.local.toml
 
